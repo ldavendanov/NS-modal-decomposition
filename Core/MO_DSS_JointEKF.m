@@ -14,20 +14,14 @@ n = 2*M;                    % Dimension of the modal and parameter vector
 [d,N] = size(y);            % Size of the signal
 
 % Default hyperparameters
-if nargin < 5
-    HyperPar.Q = 1e-4*eye(2*n);
-    HyperPar.R = eye(d);
-    HyperPar.Psi = ones(d,n);
-end
-
-% Default initial values
-if nargin < 4
-    [InitialValues,HyperPar] = VAR_initialization(y,M);
-end
-
-% Default estimator
-if nargin < 3
-    estim = 'KF';
+switch nargin
+    case 2
+        [InitialValues,HyperPar] = VAR_initialization(y,M);
+        estim = 'KF';
+    case 3
+        [InitialValues,HyperPar] = VAR_initialization(y,M);
+    case 4
+        [~,HyperPar] = VAR_initialization(y,M);
 end
 
 % Setting up the initial values

@@ -10,8 +10,9 @@ clc
 
 %-- Signal features
 N = 6e3;                                                                    % Number of samples
-fs = 1e3;                                                                   % Sampling frequency
+fs = 5e2;                                                                   % Sampling frequency
 t = 0:N-1;                                                                  % Time vector
+SNR = 60;                                                                   % Signal to noise ratio
 
 Aii = [1 0.2; 0.8 0.4; -0.2 1.0];                                           % Amplitude coefficients
 fii = [50 -20; 80 20; 120 20];                                              % Frequency coefficients
@@ -45,6 +46,8 @@ end
 
 %-- Measured signals
 y = Psi*ym;
+sigmaN = sqrt( min(var(y,[],2))*10.^( -SNR/10 ) );
+y = y + sigmaN*randn(3,N);
 
 figure
 subplot(411)
@@ -77,25 +80,25 @@ figure('Position',[100 100 1200 600])
 for i=1:M
     
     subplot(3,3,3*i-2)
-    plot(t,ym(2*i,:)/std(ym(2*i,:)))
+    plot(t/fs,ym(2*i,:)/std(ym(2*i,:)))
     hold on
-    plot(t,Modal.ym(2*i,:)/std(Modal.ym(2*i,:)))
+    plot(t/fs,Modal.ym(2*i,:)/std(Modal.ym(2*i,:)))
     grid on
     xlabel('Time [s]')
     ylabel(['Mode ',num2str(i)])
     
     subplot(3,3,3*i-1)
-    plot(t,IA(i,:)/max(IA(i,100:end)))
+    plot(t/fs,IA(i,:)/max(IA(i,100:end)))
     hold on
-    plot(t,Modal.Am(i,:)/max(Modal.Am(i,100:end)))
+    plot(t/fs,Modal.Am(i,:)/max(Modal.Am(i,100:end)))
     grid on
     xlabel('Time [s]')
     ylabel(['IA Mode ',num2str(i),' [--]'])
     
     subplot(3,3,3*i)
-    plot(t,IF(i,:))
+    plot(t/fs,IF(i,:))
     hold on
-    plot(t,Modal.omega(i,:)*fs/(2*pi))
+    plot(t/fs,Modal.omega(i,:)*fs/(2*pi))
     grid on
     xlabel('Time [s]')
     ylabel(['IF Mode ',num2str(i),' [Hz]'])

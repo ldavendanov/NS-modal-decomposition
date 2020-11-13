@@ -31,13 +31,6 @@ grid on
 xlabel('Time [s]')
 ylabel('Damping ratio [%]')
 
-figure('Position',[1300 100 600 600])
-for i=1:n
-    subplot(n,1,i)
-    imagesc( t, 1:n, squeeze(real(Phi(:,i,:))) )
-    colorbar
-end
-
 %% Pt 2 : Make a simulation of the NS system ------------------------------
 close all
 clc
@@ -47,6 +40,10 @@ x0 = zeros(2*n,1);                                                          % In
 F = randn(1,N);                                                             % Force excitation
 [~,x] = ode45(@(t,x)MassSpringSystem(t,x,F,fs),t,x0);                       % Simulate the system response
 y = [zeros(1,n); diff(x(:,4:6))]';                                          % Acceleration signal
+
+% Extract outputs
+out_indx = [1 3];
+y = y(out_indx,:);
 
 % Calculate the spectrogram
 Nf = 512;
@@ -76,17 +73,24 @@ clc
 
 % Performing the calculation
 M = 3;
-Niter = 10;
+Niter = 20;
 [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter);
 
-%%
+%% Plotting results - Log marginal likelihood
 close all
 clc
 
-TT = [0 100];
+figure
+plot(1:Niter,logMarginal)
+
+%% Plotting results - Modal decomposition
+close all
+clc
+
+TT = [0 40];               % Period to show results
 clr = lines(M);
 
-figure('Position',[100 100 1200 600])
+figure('Position',[100 100 1600 800])
 for i=1:M
     subplot(M,3,3*i-2)
     plot(t,Modal.ym(2*i,:),'Color',clr(i,:))
@@ -94,6 +98,7 @@ for i=1:M
     grid on
     ylabel(['Mode ',num2str(i)])
     xlabel('Time [s]')
+    set(gca,'FontName','Times New Roman','FontSize',12)
     
     subplot(M,3,3*i-1)
     plot(t,Modal.Am(i,:),'Color',clr(i,:))
@@ -101,6 +106,7 @@ for i=1:M
     grid on
     ylabel(['Amplitude mode ',num2str(i)])
     xlabel('Time [s]')
+    set(gca,'FontName','Times New Roman','FontSize',12)
 end
 
 subplot(1,3,3)
@@ -114,8 +120,44 @@ for i=1:M
 end
 xlim(TT)
 ylim([0 fs/2])
+set(gca,'FontName','Times New Roman','FontSize',12)
 
-title('Estimate based on the three outputs')
+%% Plotting results - Hyperparameter estimates
+close all
+clc
+
+q = diag(HyperPar.Q);
+
+figure('Position',[100 100 1200 400])
+subplot(131)
+bar(sqrt(q(1:2*M)))
+xlabel('Index')
+ylabel('$\sigma_{z_{i}}$','Interpreter','latex')
+title('State innov. variance')
+set(gca,'FontName','Times New Roman','FontSize',12)
+
+subplot(132)
+bar(sqrt(q(2*M+1:end)))
+xlabel('Index')
+ylabel('$\sigma_{\theta_{i}}$','Interpreter','latex')
+set(gca,'FontName','Times New Roman','FontSize',12)
+title('Parameter innov. variance')
+
+subplot(133)
+bar(sqrt(diag(HyperPar.R)))
+xlabel('Index')
+ylabel('$\sigma_{y_{i}}$','Interpreter','latex')
+title('Measurement noise variance')
+set(gca,'FontName','Times New Roman','FontSize',12)
+
+figure('Position',[100 500 800 400])
+imagesc(abs(HyperPar.Psi))
+xlabel('Mode index')
+ylabel('Output index')
+set(gca,'XTick',1:2*M,'YTick',1:n,'CLim',[0 inf])
+set(gca,'FontName','Times New Roman','FontSize',12)
+colorbar
+title('Mixing matrix - Absolute value')
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 %%--- Other functions ---------------------------------------------------%%
