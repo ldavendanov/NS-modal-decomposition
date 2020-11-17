@@ -42,7 +42,7 @@ F = randn(1,N);                                                             % Fo
 y = [zeros(1,n); diff(x(:,4:6))]';                                          % Acceleration signal
 
 % Extract outputs
-out_indx = [1 3];
+out_indx = [1 2 3];
 y = y(out_indx,:);
 
 % Calculate the spectrogram
@@ -73,21 +73,16 @@ clc
 
 % Performing the calculation
 M = 3;
-Niter = 20;
-[Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter);
-
-%% Plotting results - Log marginal likelihood
-close all
-clc
-
-figure
-plot(1:Niter,logMarginal)
+Niter = 60;
+IniGuess.Variances = [1e-5 1e-5];
+IniGuess.TargetFrequencies = 2*pi*fN(:,1)/fs;
+[Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter,IniGuess);
 
 %% Plotting results - Modal decomposition
 close all
 clc
 
-TT = [0 40];               % Period to show results
+TT = [0 100];               % Period to show results
 clr = lines(M);
 
 figure('Position',[100 100 1600 800])
@@ -158,6 +153,26 @@ set(gca,'XTick',1:2*M,'YTick',1:n,'CLim',[0 inf])
 set(gca,'FontName','Times New Roman','FontSize',12)
 colorbar
 title('Mixing matrix - Absolute value')
+
+%%
+close all
+clc
+
+% Projecting to obtain the modal decomposition
+ym = zeros(n,N);
+for i=1:N
+    ym(:,i) = Phi(:,:,i)'*y(:,i);
+end
+
+xl = [00 60];
+for i=1:M
+    Am = abs(ym(i,:));
+    subplot(M,1,i)
+    plot(t,Am )
+    hold on
+    plot(t,Modal.Am(i,:) )
+    xlim(xl)
+end
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 %%--- Other functions ---------------------------------------------------%%

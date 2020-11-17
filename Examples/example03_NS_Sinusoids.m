@@ -63,44 +63,134 @@ plot(t,ym)
 subplot(414)
 plot(t,y)
 
-
 %% Pt.2 : Estimating the signal components with the diagonal SS method
 close all
 clc
 
 M = 3;
-Niter = 10;
-[Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter);
+Niter = 60;
+IniGuess.Variances = [1e-6 1e-6];
+IniGuess.TargetFreqs = 2*pi*IF(:,1)/fs;
+[Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter,IniGuess);
 
 %% Pt.3 : Showing results
 close all
 clc
 
+xl = [0.0 4.0];
+clr = lines(2);
+
 figure('Position',[100 100 1200 600])
 for i=1:M
     
-    subplot(3,3,3*i-2)
-    plot(t/fs,ym(2*i,:)/std(ym(2*i,:)))
+    subplot(3,3,3*(M-i+1)-2)
+    plot(t/fs,ym(2*i-1,:)/std(ym(2*i,:)))
     hold on
-    plot(t/fs,Modal.ym(2*i,:)/std(Modal.ym(2*i,:)))
+    plot((t)/fs,Modal.ym(2*i,:)/std(Modal.ym(2*i,:)))
     grid on
     xlabel('Time [s]')
     ylabel(['Mode ',num2str(i)])
+    set(gca,'FontName','Times New Roman','FontSize',12)
+    xlim(xl)
     
-    subplot(3,3,3*i-1)
+    subplot(3,3,3*(M-i+1)-1)
     plot(t/fs,IA(i,:)/max(IA(i,100:end)))
     hold on
     plot(t/fs,Modal.Am(i,:)/max(Modal.Am(i,100:end)))
     grid on
     xlabel('Time [s]')
     ylabel(['IA Mode ',num2str(i),' [--]'])
+    set(gca,'FontName','Times New Roman','FontSize',12)
+    xlim(xl)
     
-    subplot(3,3,3*i)
-    plot(t/fs,IF(i,:))
+    subplot(1,3,3)
+    plot(t/fs,IF(i,:),'Color',clr(1,:))
     hold on
-    plot(t/fs,Modal.omega(i,:)*fs/(2*pi))
+    plot(t/fs,Modal.omega(i,:)*fs/(2*pi),'Color',clr(2,:))
     grid on
     xlabel('Time [s]')
     ylabel(['IF Mode ',num2str(i),' [Hz]'])
+    set(gca,'FontName','Times New Roman','FontSize',12)
+    xlim(xl)
+    
+end
+
+Qth = HyperPar.Q(2*M+1:end,2*M+1:end);
+R = Qth;
+for i=1:2*M
+    c = sqrt(Qth(i,i))*sqrt( diag( Qth )' );
+    R(i,:) = R(i,:)./c;
+end
+
+figure
+imagesc(R)
+colorbar
+set(gca,'CLim',[-1 1])
+
+%% Plotting results - Hyperparameter estimates
+close all
+clc
+
+q = diag(HyperPar.Q);
+
+figure('Position',[100 100 1200 400])
+subplot(131)
+bar(log10(q(1:2*M)))
+xlabel('Index')
+ylabel('$\log_{10} \sigma_{z_{i}}^2$','Interpreter','latex')
+title('State innov. variance')
+set(gca,'FontName','Times New Roman','FontSize',12)
+
+subplot(132)
+bar(log10(q(2*M+1:end)))
+xlabel('Index')
+ylabel('$\log_{10} \sigma_{\theta_{i}}^2$','Interpreter','latex')
+set(gca,'FontName','Times New Roman','FontSize',12)
+title('Parameter innov. variance')
+
+subplot(133)
+bar(log10(diag(HyperPar.R)))
+xlabel('Index')
+ylabel('$\log_{10}\sigma_{y_{i}}^2$','Interpreter','latex')
+title('Measurement noise variance')
+set(gca,'FontName','Times New Roman','FontSize',12)
+
+figure('Position',[100 500 800 400])
+imagesc(abs(HyperPar.Psi))
+xlabel('Mode index')
+ylabel('Output index')
+set(gca,'XTick',1:2*M,'YTick',1:3,'CLim',[0 inf])
+set(gca,'FontName','Times New Roman','FontSize',12)
+colorbar
+title('Mixing matrix - Absolute value')
+
+R = HyperPar.Q(2*M+1:end,2*M+1:end);
+for i=1:2*M
+    R(i,:) = R(i,:)./diag( HyperPar.Q(2*M+1:end,2*M+1:end) )';
+end
+
+figure
+imagesc(R)
+colorbar
+set(gca,'CLim',[-1 1])
+
+%%
+close all
+clc
+
+figure
+for i=1:3
+    
+    psi1 = Psi(i,1:2:end).^2 + Psi(i,2:2:end).^2;
+    psi2 = HyperPar.Psi(i,1:2:end).^2 + HyperPar.Psi(i,2:2:end).^2;
+    subplot(3,1,i)
+    plot( psi1/norm(psi1) )
+    hold on
+    plot( psi2/norm(psi2) )
+    ylim([0 1])
+    xlabel('Output index')
+    ylabel(['|\psi_',num2str(i),'|'])
+    set(gca,'FontName','Times New Roman','FontSize',12)
+
     
 end

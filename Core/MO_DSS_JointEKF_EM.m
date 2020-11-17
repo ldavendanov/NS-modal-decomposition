@@ -1,4 +1,4 @@
-function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter)
+function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter,InitialGuess)
 %--------------------------------------------------------------------------
 % Joint EKF estimator for Multiple-Output Diagonal State Space
 % representation. This function estimates the 'M' modal components of a
@@ -8,14 +8,21 @@ function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter)
 %    Updated : David Avendano - November 2020
 %--------------------------------------------------------------------------
 
+if nargin < 3
+    Niter = 20;
+    InitialGuess = [];
+elseif nargin < 4
+        InitialGuess = [];
+end
+
 %% Pt 1 : Initial set-up
 
 n = 2*M;                    % Dimension of the modal and parameter vector
 [d,N] = size(y);            % Size of the signal
 
 % Set up initial values
-% [Initial,HyperPar] = VAR_initialization(y(:,1:500*M),M);
-[Initial,HyperPar] = STFT_initialization(y,M);
+[Initial,HyperPar] = VAR_initialization(y(:,1:200*M),M,InitialGuess);
+% [Initial,HyperPar] = STFT_initialization(y,M,TargetFreqs);
 
 % Setting up the state space representation
 System.ffun = @ffun;
@@ -26,18 +33,21 @@ System.H = [HyperPar.Psi zeros(d,n)];
 
 ind = 1:n;          % Indices of the state vector
 logMarginal = zeros(1,Niter);
+T = 2:N;
+
+figure('Position',[100 300 1200 400])
 
 for k=1:Niter
     
-    fprintf('EM algorithm - Iteration No. %3d ',k)
-    
+    fprintf('EM algorithm - Iteration No. %3d - ',k)
+        
     % -- P2.1 : Expectation step - State estimation --
     [State,Covariances,logM,K] = KalmanFilter( y, System, HyperPar, Initial );
     [State,Covariances,J] = KalmanSmoother( State, Covariances, System );
     Covariances = LagOneCovSmoother( State, Covariances, System, K, J );
-    logMarginal(k) = mean(logM);
+    logMarginal(k) = mean(logM(T));
     
-    fprintf('Log-likelihood No. %2.4f\n',logMarginal(k))
+    fprintf('Log-likelihood %2.4f\n',logMarginal(k))
     
     % -- P2.2 : Maximization step - Updating hyperparameters --
     
@@ -45,27 +55,67 @@ for k=1:Niter
     Initial.x0 = State.xtN(:,1);
     Initial.P0 = Covariances.PtN(:,:,1);
     
-    % P2.2.2 : Update state noise covariance
-    % Individual covariances
-    S11 = State.xtN(:,2:N)*State.xtN(:,2:N)' + sum( Covariances.PtN(:,:,2:N), 3 );
-    S10 = State.xtN(:,2:N)*State.xtN(:,1:N-1)' + sum( Covariances.PttmN(:,:,2:N), 3 );
-    S00 = State.xtN(:,1:N-1)*State.xtN(:,1:N-1)' + sum( Covariances.PtN(:,:,1:N-1), 3 );
+    % P2.2.2 : Update noise covariances
     
-    % Covariance update
-    HyperPar.Q = ( S11 -  ( S10/S00 )*S10' )/(N-1);     % Covariance update equation
-    HyperPar.Q(ind,ind+n) = 0;                          % Making sure that state and parameters are uncorrelated
-    HyperPar.Q(ind+n,ind) = 0;
-    
-    % P2.2.3 : Update measurement noise covariance
+    S11th = State.xtN(ind+n,T)*State.xtN(ind+n,T)' + sum( Covariances.PtN(ind+n,ind+n,T), 3 );
+    S11 = State.xtN(ind,T)*State.xtN(ind,T)' + sum( Covariances.PtN(ind,ind,T), 3 );
+    S10th = zeros(n);   S00th = zeros(n);
+    S10 = zeros(n);     S00 = zeros(n);
     etN = y - System.H*State.xtN;
-    HyperPar.R = etN*etN'/N + 1e-5*eye(d);
-    for i=1:N
-        HyperPar.R = HyperPar.R + ( System.H*Covariances.PtN(:,:,i)*System.H' )/N;
+    HyperPar.R = etN(:,T)*etN(:,T)'/numel(T);
+    
+    for i=T
+        S10th = S10th + ( State.xtN(ind+n,i)*State.xtN(ind+n,i-1)' ...
+                        + Covariances.PttmN(ind+n,ind+n,i) );
+        S00th = S00th + ( State.xtN(ind+n,i-1)*State.xtN(ind+n,i-1)' ...
+                        + Covariances.PtN(ind+n,ind+n,i-1) );
+                    
+        F = System.F(State.xtN(:,i-1));
+        F = F(ind,ind);
+        S10 = S10 + ( State.xtN(ind,i)*State.xtN(ind,i-1)' ...
+                        + Covariances.PttmN(ind,ind,i) )*F';
+        S00 = S00 + F*( State.xtN(ind,i-1)*State.xtN(ind,i-1)' ...
+                        + Covariances.PtN(ind,ind,i-1) )*F';
+                    
+        HyperPar.R = HyperPar.R + ( System.H*Covariances.PtN(:,:,i)*System.H' )/numel(T);
+        
+    end
+    
+    % Parameter covariance
+    Qup_th = ( S11th - S10th - S10th' + S00th )/numel(T);
+    HyperPar.Q(ind+n,ind+n) = Qup_th;
+        
+    % State covariance
+    Qup = ( S11 - S10 - S10' + S00 )/numel(T);
+    for i=1:M
+        ind1 = (1:2)+2*(i-1);
+        HyperPar.Q(ind1,ind1) = mean(diag(Qup(ind1,ind1)))*eye(2);
     end
     
     % P2.3.4 : Update mixing matrix (state measurement matrix)
-    Psi = ( y(:,2:N)*State.xtN(ind,2:N)' ) / S11(ind,ind);
-    System.H = [Psi zeros(d,n)];    
+    HyperPar.Psi = ( y(:,T)*State.xtN(ind,T)' ) / S11;
+    System.H = [HyperPar.Psi zeros(d,n)];
+    
+    subplot(131)
+    plot(k,logMarginal(k),'.b')
+    hold on
+    xlim([0 Niter])
+    ylabel('Log marginal likelihood')
+    xlabel('Iteration')
+    
+    subplot(132)
+    semilogy(diag(HyperPar.Q(ind,ind)),'b')
+    hold on
+    ylabel('State innov. variance')
+    xlabel('State index')
+    
+    subplot(133)
+    semilogy(diag(Qup_th),'b')
+    hold on
+    ylabel('Param. innov. variance')
+    xlabel('Param. index')
+    
+    drawnow
     
 end
 
