@@ -15,8 +15,8 @@ t = 0:N-1;                                                                  % Ti
 SNR = 40;                                                                   % Signal to noise ratio
 
 Aii = [1 0.2; 0.8 0.4; -0.2 1.0];                                           % Amplitude coefficients
-fii = [50 -20; 80 20; 120 20];                                              % Frequency coefficients
-alpha = [0.5 0.5 0.25];                                                     % Cyclic frequency
+fii = [50 -20 10];                                                          % Frequency coefficients
+alpha = 0.5;                                                                % Cyclic frequency
 Psi =  [1.0 0.8 0.5 0.5 0.2 0.8;
         0.5 0.5 0.8 1.0 0.4 0.6;
         0.4 0.9 0.1 0.2 1.0 0.0];
@@ -28,22 +28,19 @@ end
 
 %-- Instantaneous Amplitudes
 IA = zeros(3,N);
-IA(1,:) = Aii(1,1) + Aii(1,2)*cos(2*pi*alpha(1)*t/fs);
-IA(2,:) = Aii(2,1) + Aii(2,2)*sin(2*pi*alpha(2)*t/fs);
-IA(3,:) = max( Aii(3,1) + Aii(3,2)*abs( cos(2*pi*alpha(3)*t/fs) ), 0 );
+IA(1,:) = Aii(1,1) + Aii(1,2)*cos(2*pi*alpha*t/fs);
+IA(2,:) = Aii(2,1) + Aii(2,2)*sin(2*pi*alpha*t/fs);
+IA(3,:) = max( Aii(3,1) + Aii(3,2)*abs( cos(2*pi*alpha*t/fs) ), 0 );
 
 %-- Instantaneous frequencies
-IF = zeros(3,N);
-IF(1,:) = fii(1,1) + fii(1,2)*sin( 2*pi*alpha(1)*t/fs );
-IF(2,:) = fii(2,1) + fii(2,2)*sin( 2*pi*alpha(2)*t/fs );
-IF(3,:) = fii(3,1) + fii(3,2)*sin( 2*pi*alpha(3)*t/fs );
+IF = fii(1,1) + fii(1,2)*sin( 2*pi*alpha(1)*t/fs ) + fii(1,3)*cos( 2*pi*alpha(1)*t/fs );
 
 %-- Individual modes
 ym = zeros(6,N);
 Phi0 = 2*pi*rand(3,1);
 for i=1:3
-    ym(2*i-1,:) = IA(i,:).*cos( cumsum( 2*pi*IF(i,:)/fs ) + Phi0(i) );
-    ym(2*i,:) = IA(i,:).*sin( cumsum( 2*pi*IF(i,:)/fs ) + Phi0(i) );
+    ym(2*i-1,:) = IA(i,:).*cos( cumsum( i*2*pi*IF/fs ) + Phi0(i) );
+    ym(2*i,:) = IA(i,:).*sin( cumsum( i*2*pi*IF/fs ) + Phi0(i) );
 end
 
 %-- Measured signals
@@ -86,7 +83,6 @@ grid on
 set(gca,'FontName',FName,'FontSize',FSize)
 ylabel('IF [Hz]')
 xlabel('Time [s]')
-legend({'Mode 1','Mode 2','Mode 3'},'Orientation','horizontal')
 
 
 %% Pt.2 : Estimating the signal components with the diagonal SS method
@@ -103,11 +99,13 @@ IniGuess.Variances = [1e-4 1e-5];
 [Modal{1},logMarginal{1}] = MO_DSS_JointEKF(y,M,'KS',InitialValues,HPar);
 
 % Estimate after EM optimization
-Niter = 60;
-IniGuess.Variances = [1e-6 1e-6];
-[Modal{2},logMarginal{2},HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter,IniGuess);
+Niter = 50;
+Orders = [1 2 3];
+IniGuess.TargetFrequency = 2*pi*IF(1)/fs;
+IniGuess.Variances = [1e-4 1e-4];
+[Modal{2},logMarginal{2},HyperPar] = MO_DSS_JointEKF_MultiHar_EM(y,Orders,Niter,IniGuess);
 
-save('OptimizedHyperParams','HyperPar')
+% save('OptimizedHyperParams','HyperPar')
 
 %% Pt.3 : Showing results
 close all
@@ -144,16 +142,16 @@ print('Figures\Ex1_IAestimates','-dpng','-r300')
 
 figure('Position',[700 100 600 500])
 for m=1:M
-    plot(t/fs,IF(m,:),'--k')
+    plot(t/fs,m*IF,'--k')
     hold on
     plot(t/fs,Modal{1}.omega(m,:)*fs/(2*pi),'Color',clr(1,:),'LineWidth',1.5)
-    plot(t/fs,Modal{2}.omega(m,:)*fs/(2*pi),'Color',clr(2,:),'LineWidth',1.5)
+    plot(t/fs,m*Modal{2}.omega*fs/(2*pi),'Color',clr(2,:),'LineWidth',1.5)
     xlim(xl)
     grid on
     xlabel('Time [s]')
     ylabel('IF [Hz]')
     set(gca,'FontName',FName,'FontSize',FSize)
-    text(0.1,IF(m,1),['Mode ',num2str(m)],'FontName',FName,'FontSize',FSize-1)
+    text(0.1,m*IF(1),['Mode ',num2str(m)],'FontName',FName,'FontSize',FSize-1)
 end
 legend({'Original','Manual adjustment','EM optimization'},...
     'Location','northoutside','Orientation','horizontal')
@@ -168,11 +166,6 @@ clc
 q = diag(HyperPar.Q);
 
 Qth = HyperPar.Q(2*M+1:end,2*M+1:end);
-R = Qth;
-for i=1:2*M
-    c = sqrt(Qth(i,i))*sqrt( diag( Qth )' );
-    R(i,:) = R(i,:)./c;
-end
 
 figure('Position',[100 100 600 600])
 subplot(311)
@@ -208,22 +201,6 @@ legend({'Initial','After optimization'},'Orientation','horizontal')
 ylim([-6.4 -4.4]), xlim([0.5 2*M+0.5])
 grid on
 
-set(gcf,'PaperPositionMode','auto')
-print('Figures\Ex1_CovEstimates1','-dpng','-r300')
-
-
-figure('Position',[700 100 600 500])
-imagesc(R)
-axis square
-cbar = colorbar;
-set(gca,'CLim',[-1 1])
-xlabel('Param. index')
-ylabel('Param. index')
-cbar.Label.String = 'Correlation index';
-set(gca,'FontName',FName,'FontSize',FSize)
-
-set(gcf,'PaperPositionMode','auto')
-print('Figures\Ex1_CovEstimates2','-dpng','-r300')
 
 %%
 close all

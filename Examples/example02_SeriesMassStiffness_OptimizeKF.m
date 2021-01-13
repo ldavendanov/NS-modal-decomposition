@@ -73,7 +73,7 @@ clc
 
 % Performing the calculation
 M = 3;
-Niter = 60;
+Niter = 50;
 IniGuess.Variances = [1e-5 1e-5];
 IniGuess.TargetFrequencies = 2*pi*fN(:,1)/fs;
 [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter,IniGuess);
@@ -106,7 +106,7 @@ end
 
 subplot(1,3,3)
 for i=1:M
-    plot(t,Modal.omega(i,:)*fs/(2*pi),'Color',clr(i,:))
+    plot(t,(Modal.omega(i,:))*fs/(2*pi),'Color',clr(i,:))
     hold on
     plot(t,fN(i,:),'--','Color',clr(i,:))
     grid on

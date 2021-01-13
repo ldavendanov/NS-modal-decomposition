@@ -1,4 +1,4 @@
-function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter,InitialGuess)
+function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_MultiHar_EM(y,Orders,Niter,InitialGuess)
 %--------------------------------------------------------------------------
 % Joint EKF estimator for Multiple-Output Diagonal State Space
 % representation. This function estimates the 'M' modal components of a
@@ -17,17 +17,22 @@ end
 
 %% Pt 1 : Initial set-up
 
+M = numel(Orders);
 n = 2*M;                    % Dimension of the modal and parameter vector
 [d,N] = size(y);            % Size of the signal
 
 % Set up initial values
-[Initial,HyperPar] = VAR_initialization(y(:,1:200*M),M,InitialGuess);
-% [Initial,HyperPar] = STFT_initialization(y,M,TargetFreqs);
+% [Initial,HyperPar] = VAR_initialization(y(:,1:200*M),Orders,InitialGuess);
+[Initial,HyperPar] = STFT_initialization(y,M,Orders*InitialGuess.TargetFrequency);
+Initial.x0 = [Initial.x0(1:2*M); InitialGuess.TargetFrequency];
+Initial.P0 = Initial.P0(1:2*M+1,1:2*M+1);
+HyperPar.Q = InitialGuess.Variances(1)*eye(2*M+1);
+HyperPar.Q(end,end) = InitialGuess.Variances(2);
 
 % Setting up the state space representation
-System.ffun = @ffun;
-System.F = @stm;
-System.H = [HyperPar.Psi zeros(d,n)];
+System.ffun = @(z)ffun(z,Orders);
+System.F = @(z)stm(z,Orders);
+System.H = [HyperPar.Psi zeros(d,1)];
 
 %% Pt 2 : Expectation-Maximization algorithm for state estimation and hyperparameter estimation
 
@@ -52,23 +57,23 @@ for k=1:Niter
     % -- P2.2 : Maximization step - Updating hyperparameters --
     
     % P2.2.1 : Update initial values
-    Initial.x0 = State.xtN(:,1);
+%     Initial.x0 = State.xtN(:,1);
     Initial.P0 = Covariances.PtN(:,:,1);
     
     % P2.2.2 : Update noise covariances
     
-    S11th = State.xtN(ind+n,T)*State.xtN(ind+n,T)' + sum( Covariances.PtN(ind+n,ind+n,T), 3 );
+    S11th = State.xtN(n+1,T)*State.xtN(n+1,T)' + sum( Covariances.PtN(n+1,n+1,T), 3 );
     S11 = State.xtN(ind,T)*State.xtN(ind,T)' + sum( Covariances.PtN(ind,ind,T), 3 );
-    S10th = zeros(n);   S00th = zeros(n);
+    S10th = 0;   S00th = 0;
     S10 = zeros(n);     S00 = zeros(n);
     etN = y - System.H*State.xtN;
     HyperPar.R = etN(:,T)*etN(:,T)'/numel(T);
     
     for i=T
-        S10th = S10th + ( State.xtN(ind+n,i)*State.xtN(ind+n,i-1)' ...
-                        + Covariances.PttmN(ind+n,ind+n,i) );
-        S00th = S00th + ( State.xtN(ind+n,i-1)*State.xtN(ind+n,i-1)' ...
-                        + Covariances.PtN(ind+n,ind+n,i-1) );
+        S10th = S10th + ( State.xtN(n+1,i)*State.xtN(n+1,i-1)' ...
+                        + Covariances.PttmN(n+1,n+1,i) );
+        S00th = S00th + ( State.xtN(n+1,i-1)*State.xtN(n+1,i-1)' ...
+                        + Covariances.PtN(n+1,n+1,i-1) );
                     
         F = System.F(State.xtN(:,i-1));
         F = F(ind,ind);
@@ -83,7 +88,7 @@ for k=1:Niter
     
     % Parameter covariance
     Qup_th = ( S11th - S10th - S10th' + S00th )/numel(T);
-    HyperPar.Q(ind+n,ind+n) = Qup_th;
+    HyperPar.Q(n+1,n+1) = Qup_th;
         
     % State covariance
     Qup = ( S11 - S10 - S10' + S00 )/numel(T);
@@ -94,7 +99,7 @@ for k=1:Niter
     
     % P2.3.4 : Update mixing matrix (state measurement matrix)
     HyperPar.Psi = ( y(:,T)*State.xtN(ind,T)' ) / S11;
-    System.H = [HyperPar.Psi zeros(d,n)];
+    System.H = [HyperPar.Psi zeros(d,1)];
     
     subplot(131)
     plot(k,logMarginal(k),'.b')
@@ -110,7 +115,7 @@ for k=1:Niter
     xlabel('State index')
     
     subplot(133)
-    semilogy(diag(Qup_th),'b')
+    semilogy(k,diag(Qup_th),'ob')
     hold on
     ylabel('Param. innov. variance')
     xlabel('Param. index')
@@ -124,13 +129,10 @@ end
 xhat = State.xtN;
 
 Modal.ym = xhat(1:2*M,:);
-Modal.theta = xhat(2*M+1:4*M,:);
-Modal.omega = zeros(M,N);
-Modal.zeta = zeros(M,N);
+Modal.theta = xhat(2*M+1,:);
+Modal.omega = xhat(2*M+1,:);
 Modal.Am = zeros(M,N);
 for m=1:M
-    Modal.omega(m,:) = atan2( Modal.theta(2*m,:), Modal.theta(2*m-1,:) );
-    Modal.zeta(m,:) = -cos( angle( -Modal.theta(2*m,:) + 1i*Modal.theta(2*m-1,:) ) );
     Modal.Am(m,:) = sqrt( xhat(2*m-1,:).^2 + xhat(2*m,:).^2 );
 end
 
@@ -145,42 +147,39 @@ end
 
 
 %--------------------------------------------------------------------------
-function z_new = ffun(z_old)
+function z_new = ffun(z_old,ord)
 
-n = length(z_old);
-M = dffun_dz(z_old(n/2+1:n));
+n = length(z_old)-1;
+M = dffun_dz(z_old(end),ord);
 z_new = z_old;
-z_new(1:n/2) = M*z_old(1:n/2);
+z_new(1:n) = M*z_old(1:n);
 
 %--------------------------------------------------------------------------
-function F = stm(z)
+function F = stm(z,ord)
 
-n = length(z);
-M = dffun_dz(z(n/2+1:n));
-Z = dffun_dtheta(z(1:n/2));
-F = [M Z; zeros(n/2) eye(n/2)];
+n = length(z)-1;
+M = dffun_dz(z(end),ord);
+Z = dffun_dtheta(z(1:n),z(end),ord);
+F = [M Z; zeros(1,n) 1];
 
 %--------------------------------------------------------------------------
-function M = dffun_dz(theta)
+function M = dffun_dz(theta,ord)
 
-n = length(theta);
-M = zeros(n);
-for k=1:n/2
-    M(2*k-1,2*k-1) =  theta(2*k-1);
-    M(2*k  ,2*k  ) =  theta(2*k-1);
-    M(2*k-1,2*k  ) =  theta(2*k);
-    M(2*k  ,2*k-1) = -theta(2*k);
+n = length(ord);
+M = zeros(2*n);
+for k=1:n
+    ind = (1:2)+2*(k-1);
+    M(ind,ind) = [ cos(ord(k)*theta) sin(ord(k)*theta)
+                  -sin(ord(k)*theta) cos(ord(k)*theta)];
 end
 
 %--------------------------------------------------------------------------
-function Z = dffun_dtheta(z)
+function Z = dffun_dtheta(z,theta,ord)
 
-n = length(z);
-Z = zeros(n);
-for k=1:n/2
-    Z(2*k-1,2*k-1) =  z(2*k-1);
-    Z(2*k  ,2*k  ) = -z(2*k-1);
-    Z(2*k-1,2*k  ) =  z(2*k);
-    Z(2*k  ,2*k-1) =  z(2*k);
+n = length(ord);
+Z = zeros(2*n,1);
+for k=1:n
+    ind = (1:2)+2*(k-1);
+    Z(ind) = ord(k)*[-sin(ord(k)*theta)  cos(ord(k)*theta);
+                     -cos(ord(k)*theta) -sin(ord(k)*theta)]*z(ind);
 end
-

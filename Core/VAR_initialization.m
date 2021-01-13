@@ -40,7 +40,7 @@ if ~isfield(InitialGuess,'TargetFrequencies')
     
 else
     
-    na = ceil(4*M/d);                                                           % Model order for requested number of modes
+    na = ceil(2*M/d);                                                           % Model order for requested number of modes
     [A,R] = VARestimate(y,na);                                                  % Calculate Vector AR model for the given data
     
     % Eigenvalue decomposition of the associated SS representation
@@ -60,10 +60,7 @@ else
     theta0(2:2:2*M) = sin(InitialGuess.TargetFrequencies);
     
     % Initial value of the state vector
-%     x = V\[y(:,2); y(:,1)];
     x0 = zeros(2*M,1);
-%     x0(1:2:end) = real( x(ind(1:2:2*M)) );
-%     x0(2:2:end) = imag( x(ind(1:2:2*M)) );
 
     % Packing output
     InitialValues.x0 = [x0; theta0];

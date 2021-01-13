@@ -76,6 +76,15 @@ for m=1:M
     Modal.Am(m,:) = sqrt( xhat(2*m-1,:).^2 + xhat(2*m,:).^2 );
 end
 
+% Making sure that the modes are normalized
+C = zeros(M,1);
+for m=1:M
+    C(m) = std(Modal.ym(2*m,:));
+    Modal.ym((1:2)+2*(m-1),:) = Modal.ym((1:2)+2*(m-1),:)/C(m);
+    Modal.Am(m,:) = Modal.Am(m,:)/C(m);
+    HyperPar.Psi(:,(1:2)+2*(m-1)) = C(m)*HyperPar.Psi(:,(1:2)+2*(m-1));
+end
+
 %--------------------------------------------------------------------------
 function z_new = ffun(z_old)
 

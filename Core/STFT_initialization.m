@@ -27,7 +27,7 @@ if nargin < 3
 else
     
     locs = zeros(M,1);
-    for i=1:3
+    for i=1:M
         locs(i) = find( ff > omega(i), 1, 'first' );
     end
     
@@ -50,7 +50,7 @@ x0 = ones(2*M,1);
 
 % Packing output
 InitialValues.x0 = [x0; theta0];
-InitialValues.P0 = 1e-4*eye(4*M);
+InitialValues.P0 = 1e-8*eye(4*M);
 HyperPar.Q = 1e-4*eye(4*M);
 HyperPar.R = diag(var(y,[],2));
 HyperPar.Psi = Psi;
