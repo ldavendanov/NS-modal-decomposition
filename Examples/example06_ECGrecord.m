@@ -11,7 +11,7 @@ fs = 200;
 load('Data\ECG PTB db\patient284\s0543_rem.mat','val')
 
 y = resample(val',fs,Fs);
-y = y(1:5e3,:);
+y = y(1:5e3,1:4);
 y = detrend(y);
 y = y/diag(std(y));
 [N,n] = size(y);
@@ -24,12 +24,12 @@ close all
 clc
 
 % Initialization
-M = 18;
+M = 10;
 Orders = 1:M;
-IniGuess.Variances = [1e-3 1e-15];
+IniGuess.Variances = [1e-3 1e-20];
 IniGuess.TargetFrequency = 2*pi*1.27/fs;
-Niter = 40;
-[Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_MultiHar_EM(y',Orders,Niter,IniGuess);
+Niter = 20;
+[Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_MultiHar_Integrated_EM(y',Orders,Niter,IniGuess);
 
 %% Pt.3 : Showing results
 close all
@@ -69,17 +69,17 @@ xl = [10 20];
 
 figure
 for i=1:n
-    subplot(n/3,3,i)
+    subplot(n/2,2,i)
     plot(sqrt( HyperPar.Psi(i,1:2:end).^2 + HyperPar.Psi(i,2:2:end).^2 ))
     ylim([0 inf])
 end
 
 figure
-for i=1:8
+for i=1:n
     psi = HyperPar.Psi(i,:);
-%     psi(39:end) = 0;
+    psi(2*(m-1)+(1:2)) = 0;
     
-    subplot(8,1,i)
+    subplot(n,1,i)
     plot(t,y(:,i))
     hold on
     plot(t,psi*Modal.ym)
@@ -91,7 +91,7 @@ close all
 clc
 
 xl = [12 14];
-r = 4;
+r = 2;
 
 figure
 for i=1:M
@@ -106,3 +106,17 @@ for i=1:M
     plot(t,psi*Modal.ym)
     xlim(xl)
 end
+
+%%
+close all
+clc
+
+figure
+subplot(131)
+imagesc(sqrt(HyperPar.Psi(:,1:2:end).^2 + HyperPar.Psi(:,2:2:end).^2))
+
+subplot(132)
+semilogy(diag(HyperPar.Q))
+
+subplot(133)
+imagesc(HyperPar.R)
