@@ -102,7 +102,7 @@ IniGuess.Variances = [1e-4 1e-5];
 Niter = 50;
 Orders = [1 2 3];
 IniGuess.TargetFrequency = 2*pi*IF(1)/fs;
-IniGuess.Variances = [1e-4 1e-4];
+IniGuess.Variances = [1e-4 1e-5];
 [Modal{2},logMarginal{2},HyperPar] = MO_DSS_JointEKF_MultiHar_EM(y,Orders,Niter,IniGuess);
 
 % save('OptimizedHyperParams','HyperPar')

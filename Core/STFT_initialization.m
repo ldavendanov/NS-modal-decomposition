@@ -46,7 +46,7 @@ for i=1:M
      
 end
 
-x0 = ones(2*M,1);
+x0 = zeros(2*M,1);
 
 % Packing output
 InitialValues.x0 = [x0; theta0];

@@ -1,4 +1,4 @@
-function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_MultiHar_EM(y,Orders,Niter,InitialGuess)
+function [Modal,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_MultiHar_EM(y,Orders,Niter,InitialGuess)
 %--------------------------------------------------------------------------
 % Joint EKF estimator for Multiple-Output Diagonal State Space
 % representation. This function estimates the 'M' modal components of a
@@ -30,8 +30,8 @@ HyperPar.Q = InitialGuess.Variances(1)*eye(2*M+1);
 HyperPar.Q(end,end) = InitialGuess.Variances(2);
 
 % Setting up the state space representation
-System.ffun = @(z)ffun(z,Orders);
-System.F = @(z)stm(z,Orders);
+System.ffun = @(z)ffun(z,Orders,0);
+System.F = @(z)stm(z,Orders,0);
 System.H = [HyperPar.Psi zeros(d,1)];
 
 %% Pt 2 : Expectation-Maximization algorithm for state estimation and hyperparameter estimation
@@ -57,7 +57,7 @@ for k=1:Niter
     % -- P2.2 : Maximization step - Updating hyperparameters --
     
     % P2.2.1 : Update initial values
-%     Initial.x0 = State.xtN(:,1);
+    Initial.x0 = State.xtN(:,1);
     Initial.P0 = Covariances.PtN(:,:,1);
     
     % P2.2.2 : Update noise covariances
@@ -92,6 +92,8 @@ for k=1:Niter
         
     % State covariance
     Qup = ( S11 - S10 - S10' + S00 )/numel(T);
+%     R = chol(Qup);
+%     HyperPar.Q(ind,ind) = R'*R;
     for i=1:M
         ind1 = (1:2)+2*(i-1);
         HyperPar.Q(ind1,ind1) = mean(diag(Qup(ind1,ind1)))*eye(2);
@@ -147,26 +149,27 @@ end
 
 
 %--------------------------------------------------------------------------
-function z_new = ffun(z_old,ord)
+function z_new = ffun(z_old,ord,omega0)
 
 n = length(z_old)-1;
-M = dffun_dz(z_old(end),ord);
+M = dffun_dz(z_old(end),ord,omega0);
 z_new = z_old;
 z_new(1:n) = M*z_old(1:n);
 
 %--------------------------------------------------------------------------
-function F = stm(z,ord)
+function F = stm(z,ord,omega0)
 
 n = length(z)-1;
-M = dffun_dz(z(end),ord);
-Z = dffun_dtheta(z(1:n),z(end),ord);
+M = dffun_dz(z(end),ord,omega0);
+Z = dffun_dtheta(z(1:n),z(end),ord,omega0);
 F = [M Z; zeros(1,n) 1];
 
 %--------------------------------------------------------------------------
-function M = dffun_dz(theta,ord)
+function M = dffun_dz(theta,ord,omega0)
 
 n = length(ord);
 M = zeros(2*n);
+theta = theta + omega0;
 for k=1:n
     ind = (1:2)+2*(k-1);
     M(ind,ind) = [ cos(ord(k)*theta) sin(ord(k)*theta)
@@ -174,10 +177,11 @@ for k=1:n
 end
 
 %--------------------------------------------------------------------------
-function Z = dffun_dtheta(z,theta,ord)
+function Z = dffun_dtheta(z,theta,ord,omega0)
 
 n = length(ord);
 Z = zeros(2*n,1);
+theta = theta + omega0;
 for k=1:n
     ind = (1:2)+2*(k-1);
     Z(ind) = ord(k)*[-sin(ord(k)*theta)  cos(ord(k)*theta);

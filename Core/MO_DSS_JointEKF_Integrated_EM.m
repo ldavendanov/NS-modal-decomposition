@@ -1,4 +1,4 @@
-function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_MultiHar_Integrated_EM(y,Orders,Niter,InitialGuess)
+function [Modal,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_Integrated_EM(y,omega_ref,Orders,Niter,InitialGuess)
 %--------------------------------------------------------------------------
 % Joint EKF estimator for Multiple-Output Diagonal State Space
 % representation. This function estimates the 'M' modal components of a
@@ -6,6 +6,7 @@ function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_MultiHar_Integrated_EM(y
 %
 % Created by : David Avendano - September 2020
 %    Updated : David Avendano - November 2020
+%    Updated : David Avendano - April 2021
 %--------------------------------------------------------------------------
 
 if nargin < 3
@@ -24,23 +25,27 @@ n = 2*M;                    % Dimension of the modal and parameter vector
 % Set up initial values
 % [Initial,HyperPar] = VAR_initialization(y(:,1:200*M),Orders,InitialGuess);
 [Initial,HyperPar] = STFT_initialization(y,M,Orders*InitialGuess.TargetFrequency);
-Initial.x0 = [Initial.x0(1:2*M); InitialGuess.TargetFrequency];
+Initial.x0 = [Initial.x0(1:2*M); omega_ref(1)];
 Initial.P0 = Initial.P0(1:2*M+1,1:2*M+1);
 HyperPar.Q = InitialGuess.Variances(1)*eye(2*M+1);
+HyperPar.Q(n-1,n-1) = 1e-12*InitialGuess.Variances(1);
+HyperPar.Q(n,n) = 1e-12*InitialGuess.Variances(1);
 HyperPar.Q(end,end) = InitialGuess.Variances(2);
+HyperPar.R(d+1,d+1) = 1e-2*HyperPar.R(1,1);
 
 % Setting up the state space representation
 System.ffun = @(z)ffun(z,Orders);
 System.F = @(z)stm(z,Orders);
-System.H = [HyperPar.Psi zeros(d,1)];
+System.H = [HyperPar.Psi zeros(d,1); zeros(1,2*M) 1];
 
 %% Pt 2 : Expectation-Maximization algorithm for state estimation and hyperparameter estimation
 
+y = [y; omega_ref]; % Extending output vector
 ind = 1:n;          % Indices of the state vector
 logMarginal = zeros(1,Niter);
 T = 2:N;
 
-figure('Position',[100 300 1200 400])
+figure('Position',[100 100 900 600])
 
 for k=1:Niter
     
@@ -98,27 +103,33 @@ for k=1:Niter
     end
     
     % P2.3.4 : Update mixing matrix (state measurement matrix)
-    HyperPar.Psi = ( y(:,T)*State.xtN(ind,T)' ) / S11;
-    System.H = [HyperPar.Psi zeros(d,1)];
+    HyperPar.Psi = ( y(1:d,T)*State.xtN(ind,T)' ) / S11;
+    System.H = [HyperPar.Psi zeros(d,1); zeros(1,2*M) 1];
     
-    subplot(131)
+    subplot(221)
     plot(k,logMarginal(k),'.b')
     hold on
     xlim([0 Niter])
     ylabel('Log marginal likelihood')
     xlabel('Iteration')
     
-    subplot(132)
+    subplot(222)
     semilogy(diag(HyperPar.Q(ind,ind)),'b')
     hold on
     ylabel('State innov. variance')
     xlabel('State index')
     
-    subplot(133)
+    subplot(223)
     semilogy(k,diag(Qup_th),'ob')
     hold on
     ylabel('Param. innov. variance')
     xlabel('Param. index')
+    
+    subplot(224)
+    semilogy(diag(HyperPar.R),'b')
+    hold on
+    ylabel('Meas. noise variance')
+    xlabel('Output index')
     
     drawnow
     
@@ -172,6 +183,8 @@ for k=1:n-1
     M(ind,ind) = [ cos(ord(k)*theta) sin(ord(k)*theta)
                   -sin(ord(k)*theta) cos(ord(k)*theta)];
 end
+ind = (1:2)+2*(n-1);
+M(ind,ind) = [2 -1; 1 0];
 
 %--------------------------------------------------------------------------
 function Z = dffun_dtheta(z,theta,ord)

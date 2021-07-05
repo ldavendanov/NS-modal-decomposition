@@ -1,4 +1,4 @@
-function [Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_EM(y,M,Niter,InitialGuess)
+function [Modal,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_EM(y,M,Niter,InitialGuess)
 %--------------------------------------------------------------------------
 % Joint EKF estimator for Multiple-Output Diagonal State Space
 % representation. This function estimates the 'M' modal components of a
@@ -21,8 +21,12 @@ n = 2*M;                    % Dimension of the modal and parameter vector
 [d,N] = size(y);            % Size of the signal
 
 % Set up initial values
-[Initial,HyperPar] = VAR_initialization(y(:,1:200*M),M,InitialGuess);
+[Initial,HyperPar] = VAR_initialization(y(:,1:min(200*M,N)),M,InitialGuess);
 % [Initial,HyperPar] = STFT_initialization(y,M,TargetFreqs);
+if isfield(InitialGuess,'Freqs')
+    Initial.x0(n+1:2:end) = cos(InitialGuess.Freqs);
+    Initial.x0(n+2:2:end) = sin(InitialGuess.Freqs);
+end
 
 % Setting up the state space representation
 System.ffun = @ffun;
@@ -83,7 +87,8 @@ for k=1:Niter
     
     % Parameter covariance
     Qup_th = ( S11th - S10th - S10th' + S00th )/numel(T);
-    HyperPar.Q(ind+n,ind+n) = Qup_th;
+    R = chol(Qup_th);
+    HyperPar.Q(ind+n,ind+n) = R'*R;
         
     % State covariance
     Qup = ( S11 - S10 - S10' + S00 )/numel(T);

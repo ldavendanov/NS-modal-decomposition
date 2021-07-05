@@ -23,10 +23,10 @@ if ~isfield(InitialGuess,'TargetFrequencies')
     theta0(2:2:2*M) = sin(omega(ind(1:2:2*M)));
     
     % Initial value of the state vector
-    x = V\[y(:,2); y(:,1)];
+%     x = V\[y(:,2); y(:,1)];
     x0 = zeros(2*M,1);
-    x0(1:2:end) = real( x(ind(1:2:2*M)) );
-    x0(2:2:end) = imag( x(ind(1:2:2*M)) );
+%     x0(1:2:end) = real( x(ind(1:2:2*M)) );
+%     x0(2:2:end) = imag( x(ind(1:2:2*M)) );
     
     % Packing output
     InitialValues.x0 = [x0; theta0];
