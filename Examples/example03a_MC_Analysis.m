@@ -7,7 +7,7 @@ addpath('..\Core\')
 % Pt.1 : Creating the simulation signal
 N = 4e3;                                                                    % Number of samples
 fs = 5e2;                                                                   % Sampling frequency
-SNR = 5;                                                                   % Signal to noise ratio
+SNR = 20;                                                                   % Signal to noise ratio
 m = 3;
 Nmc = 100;
 
@@ -132,7 +132,7 @@ end
 figure('Position',[100 100 600 600])
 subplot(311)
 bar(log10(squeeze(median(rss_sss,2))'))
-ylabel('1-R^2 - Signal')
+ylabel('log_{10} 1-R^2 - Signal')
 set(gca,'XTickLabel',Methods)
 ylim([-4 0])
 grid on
@@ -140,7 +140,7 @@ set(gca,'FontName',FName,'FontSize',FSize)
 
 subplot(312)
 bar(log10(squeeze(median(rss_sssIA,2))'))
-ylabel('1-R^2 - IA')
+ylabel('log_{10} 1-R^2 - IA')
 set(gca,'XTickLabel',Methods)
 grid on
 set(gca,'FontName',FName,'FontSize',FSize)
@@ -148,7 +148,7 @@ ylim([-4 0])
 
 subplot(313)
 bar(log10(squeeze(median(rss_sssIF,2))'))
-ylabel('1-R^2 - IF')
+ylabel('log_{10} 1-R^2 - IF')
 ylim([-6 0])
 set(gca,'XTickLabel',Methods)
 grid on
@@ -157,6 +157,17 @@ set(gca,'FontName',FName,'FontSize',FSize)
 set(gcf,'PaperPositionMode','auto')
 print(['Figures\Ex1_ErrorPerformanceMC_SNR',num2str(SNR)],'-dpng','-r300')
 print(['Figures\Ex1_ErrorPerformanceMC_SNR',num2str(SNR)],'-dmeta','-r300')
+
+figure
+bar(log10(squeeze(median(rss_sssIF,2))'))
+ylabel('log_{10} 1-R^2 - IF')
+ylim([-6 0])
+set(gca,'XTickLabel',Methods)
+grid on
+set(gca,'FontName',FName,'FontSize',FSize)
+legend({'Mode 1','Mode 2','Mode 3'},'Orientation','vertical','Location','northeastoutside')
+
+print('Figures\Ex1_ErrorPerformanceMC_Legend','-dmeta','-r300')
 
 %% ------------------------------------------------------------------------
 function [t,y,ym,IA,IF,Psi] = SignalGenerator(N,fs,SNR)
