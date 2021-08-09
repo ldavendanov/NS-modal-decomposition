@@ -4,6 +4,7 @@ function [Modal,HyperPar,State,Covariances,logMarginal] = DiagonalMvSS1(y,M,Init
 % Joint EKF method 
 % Created by : David Avendano - September 2020
 %    Updated : David Avendano - November 2020
+%    Updated : David Avendano - August 2021
 %--------------------------------------------------------------------------
 
 %% Pt 0 : Initial set-up
@@ -55,7 +56,7 @@ end
 
 %% Pt 2 : Hyperparameter adjustment with Expectation-Maximization 
 
-for k=1:10
+for k=1:20
     
     fprintf('EM iteration No. %2d - Log marginal %2.4f\n',k,mean(logMarginal))
     

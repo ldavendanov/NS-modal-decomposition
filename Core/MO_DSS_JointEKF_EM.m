@@ -21,8 +21,15 @@ n = 2*M;                    % Dimension of the modal and parameter vector
 [d,N] = size(y);            % Size of the signal
 
 % Set up initial values
-[Initial,HyperPar] = VAR_initialization(y(:,1:min(200*M,N)),M,InitialGuess);
-% [Initial,HyperPar] = STFT_initialization(y,M,TargetFreqs);
+Initial.x0 = zeros(2*n,1);
+Initial.P0 = 1e-6*eye(2*n);
+HyperPar.Q = blkdiag( InitialGuess.Variances(2)*eye(n), InitialGuess.Variances(3)*eye(n) );
+HyperPar.R = InitialGuess.Variances(1)*eye(d);
+HyperPar.Psi = ones(d,n);
+HyperPar.Psi(:,2:2:end) = 0;
+
+% % [Initial,HyperPar] = VAR_initialization(y(:,1:min(200*M,N)),M,InitialGuess);
+% % [Initial,HyperPar] = STFT_initialization(y,M,InitialGuess.TargetFreqs);
 if isfield(InitialGuess,'Freqs')
     Initial.x0(n+1:2:end) = cos(InitialGuess.Freqs);
     Initial.x0(n+2:2:end) = sin(InitialGuess.Freqs);
@@ -148,7 +155,6 @@ for m=1:M
     HyperPar.Psi(:,(1:2)+2*(m-1)) = C(m)*HyperPar.Psi(:,(1:2)+2*(m-1));
 end
 
-
 %--------------------------------------------------------------------------
 function z_new = ffun(z_old)
 
@@ -171,10 +177,9 @@ function M = dffun_dz(theta)
 n = length(theta);
 M = zeros(n);
 for k=1:n/2
-    M(2*k-1,2*k-1) =  theta(2*k-1);
-    M(2*k  ,2*k  ) =  theta(2*k-1);
-    M(2*k-1,2*k  ) =  theta(2*k);
-    M(2*k  ,2*k-1) = -theta(2*k);
+    ind = (1:2)+2*(k-1);
+    M(ind,ind) = [theta(2*k-1) theta(2*k);
+                  -theta(2*k)  theta(2*k-1)];
 end
 
 %--------------------------------------------------------------------------
@@ -183,9 +188,7 @@ function Z = dffun_dtheta(z)
 n = length(z);
 Z = zeros(n);
 for k=1:n/2
-    Z(2*k-1,2*k-1) =  z(2*k-1);
-    Z(2*k  ,2*k  ) = -z(2*k-1);
-    Z(2*k-1,2*k  ) =  z(2*k);
-    Z(2*k  ,2*k-1) =  z(2*k);
+    ind = (1:2)+2*(k-1);
+    Z(ind,ind) = [z(2*k-1) z(2*k);
+                  z(2*k)  -z(2*k-1)];
 end
-

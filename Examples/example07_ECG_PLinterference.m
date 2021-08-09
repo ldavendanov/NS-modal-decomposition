@@ -11,31 +11,37 @@ fs = 500;
 load('Data\ECG PTB db\patient284\s0543_rem.mat','val')
 
 y = resample(val',fs,Fs);
-y = y(1:5e3,1:4);
+y = y(1:1e4,7:12);
 y = detrend(y);
 y = y/diag(std(y));
 [N,n] = size(y);
 t = (0:N-1)/fs;
 
-pwelch(y,hamming(2^11),2^10,2^11,fs)
+figure
+for i=1:6
+    plot(t,8*i+y(:,i))
+    hold on
+end
 
 %% Pt.2 : Estimating the signal components with the diagonal SS method
 close all
 clc
 
 % Initialization
-M = 10;
-Orders = 1:M;
-IniGuess.Variances = [1e-3 1e-20];
-IniGuess.TargetFrequency = 2*pi*1.27/fs;
-Niter = 20;
-[Modal,logMarginal,HyperPar] = MO_DSS_JointEKF_MultiHar_Integrated_EM(y',Orders,Niter,IniGuess);
+M = 16;
+Niter = 50;
+T = 1:1.25e3;
+Initial.Variances = [1 1e-4 1e-8];
+Initial.Freqs = pi/4*(logspace(-1,0,M));
+
+[~,~,HyperPar,Initial] = MO_DSS_JointEKF_EM(y(T,:)',M,Niter,Initial);
+[Modal,logMarginal,State,Covariances,Gain] = MO_DSS_JointEKF(y',M,'KS',Initial,HyperPar);
 
 %% Pt.3 : Showing results
 close all
 clc
 
-xl = [10.0 20.0];
+xl = [10 20];
 
 clr = lines(3);
 FName = 'Times New Roman';

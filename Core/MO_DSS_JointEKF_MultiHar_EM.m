@@ -92,8 +92,6 @@ for k=1:Niter
         
     % State covariance
     Qup = ( S11 - S10 - S10' + S00 )/numel(T);
-%     R = chol(Qup);
-%     HyperPar.Q(ind,ind) = R'*R;
     for i=1:M
         ind1 = (1:2)+2*(i-1);
         HyperPar.Q(ind1,ind1) = mean(diag(Qup(ind1,ind1)))*eye(2);

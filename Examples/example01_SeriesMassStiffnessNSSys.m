@@ -189,10 +189,17 @@ for i=1:n
 end
 
 % Setting the KF variances
-variances = [1 1e-2 1e-4];
+variances = [1e-4 1e-4 1e-6];
 
-% Performing the calculation
-[ym,Am,omega,theta,error,logMarginal] = DiagonalMvSS1(y,x0,n,Psi,variances);
+Niter = 100;
+IniVal.Psi = Psi;
+IniVal.x0 = x0;
+IniVal.Variances = variances;
+[Modal,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_EM(y,M,Niter,IniVal);
+
+%% Plotting results
+close all
+clc
 
 TT = [0 100];
 
@@ -201,14 +208,14 @@ clr = lines(M);
 figure('Position',[100 100 1200 600])
 for i=1:M
     subplot(M,3,3*i-2)
-    plot(t,ym(2*i,:),'Color',clr(i,:))
+    plot(t,Modal.ym(2*i,:),'Color',clr(i,:))
     xlim(TT)
     grid on
     ylabel(['Mode ',num2str(i)])
     xlabel('Time [s]')
     
     subplot(M,3,3*i-1)
-    plot(t,Am(i,:),'Color',clr(i,:))
+    plot(t,Modal.Am(i,:),'Color',clr(i,:))
     xlim(TT)
     grid on
     ylabel(['Amplitude mode ',num2str(i)])
@@ -219,7 +226,7 @@ subplot(1,3,3)
 for i=1:M
     plot(t,omega(i,:)*fs/(2*pi),'Color',clr(i,:))
     hold on
-    plot(t,fN(i,:),'--','Color',clr(i,:))
+    plot(t,Modal.omega(i,:)*fs/(2*pi),'--','Color',clr(i,:))
     grid on
     ylabel('Frequency [Hz]')
     xlabel('Time [s]')
@@ -242,7 +249,7 @@ for i=1:3
     subplot(3,2,2*i-1)
     plot(t,y(i,:))
     hold on
-    plot(t,Psi(i,:)*ym)
+    plot(t,HyperPar.Psi(i,:)*Modal.ym)
     xlim(XLim)
     
     subplot(3,2,2*i)
@@ -261,24 +268,11 @@ TT = [20 80];
 figure('Position',[100 100 900 600])
 for i=1:M
     subplot(M,1,i)
-    plot(t,ym(i,:)/norm(ym(i,:)))
+    plot(t,Modal.ym(2*i,:)/norm(Modal.ym(2*i,:)))
     hold on
     plot(t,real(yN(i,:)/norm(real(yN(i,:)))))
     xlim(TT)
 end
-
-figure('Position',[200 200 900 600])
-for i=1:M
-    subplot(M,1,i)
-    plot(t,y(i,:))
-    hold on
-    plot(t,y(i,:)+error.posterior(i,:))
-    xlim(TT)
-end
-
-
-
-RSS_SSS = 100*sum(error.posterior.^2,2)./sum(y.^2,2);
 
 %% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% %%
 %%--- Other functions ---------------------------------------------------%%
