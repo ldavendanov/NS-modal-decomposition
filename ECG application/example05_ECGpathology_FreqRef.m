@@ -2,6 +2,7 @@ clear
 close all
 clc
 
+addpath('C:\Users\ldav\Documents\MATLAB\wfdb-app-toolbox-0-10-0\mcode')
 addpath('..\Core\')
 
 %% Pt.1 : Loading ECG recording
@@ -15,7 +16,7 @@ else
     load('PathologicalECG','val','Fs')
 end
 
-leads = 10:12;
+leads = 7:12;
 [y,fs,t,lead_names,RRinterval] = PreprocECG(val,Fs,leads);
 omega_ref = (2*pi/fs)./RRinterval;
 [N,n] = size(y);
@@ -52,14 +53,14 @@ close all
 clc
 
 % Initialization
-M = 34;
-Orders = (1:M);
+M = 44;
+Orders = (1:2:M);
 
 Optimize = true;
 
 if Optimize
-    IniGuess.Variances = [5e-5 1e-10];
-    IniGuess.TargetFrequency = 2*pi*1.07/fs;
+    IniGuess.Variances = [5e-1 1e-10];
+    IniGuess.TargetFrequency = mean(omega_ref);
     Niter = 100;
     [~,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_FreqRef_EM(y(1001:2000,:)',omega_ref(1001:2000),Orders,Niter,IniGuess);
     
@@ -105,7 +106,7 @@ print('Figures\ECGpat_spectrogram','-dpng','-r300')
 close all
 clc
 
-for lead = 1:3
+for lead = 1:6
     
     figure('Position',[100 100 900 800])
     plot3(zeros(1,N),t,y(:,lead),'LineWidth',1.5,'Color',clr(2,:))
@@ -113,7 +114,7 @@ for lead = 1:3
     for i=1:min(10,M)
         
         ind = (1:2) + 2*(i-1);
-        psi = zeros(1,2*M);
+        psi = zeros(1,M);
         psi(ind) = HyperPar.Psi(lead,ind);
         
         plot3(i*ones(1,N),t,psi*Modal.ym,'Color',clr(1,:),'LineWidth',1.5)
@@ -141,8 +142,8 @@ yhat = HyperPar.Psi*Modal.ym;
 err = y' - yhat;
 
 figure
-for i=1:3
-    subplot(3,1,i)
+for i=1:6
+    subplot(3,2,i)
     plot(t,y(:,i))
     hold on
     plot(t,yhat(i,:))
@@ -162,9 +163,9 @@ print('Figures\ECGpathological_ErrorPerf','-dpng','-r300')
 %- Optimized covariances plot
 figure('Position',[100 400 900 360])
 subplot(121)
-bar(diag(HyperPar.Q(1:2:2*M,1:2:2*M))*1e4)
+bar(diag(HyperPar.Q(1:2:M,1:2:M)))
 xlabel('Harmonic index')
-ylabel('State innov. variance $\times 10^{-4}$','Interpreter','latex')
+ylabel('State innov. variance','Interpreter','latex')
 set(gca,'FontName',FName,'FontSize',FSize+2)
 grid on
 
@@ -200,7 +201,7 @@ clc
 
 leads = [1 3];
 M_max = min(M,4);
-yl = [-1 1; -1 1; -1 1; -1 1];
+yl = 4*[-1 1; -1 1; -1 1; -1 1];
 
 figure('Position',[100 100 900 800])
 for j=1:2
@@ -215,7 +216,7 @@ for j=1:2
     
     for i=1:M_max
         
-        Psi = zeros(1,2*M);
+        Psi = zeros(1,M);
         ind = (1:2)+2*(i-1);
         Psi(ind) = HyperPar.Psi(leads(j),ind);
         
@@ -274,7 +275,7 @@ lead = 2;
 psi = HyperPar.Psi(lead,ind);
 psi = sqrt( psi(1:2:end).^2 + psi(2:2:end).^2 );
 A = diag(psi)*Modal.Am;
-Mmax = M;
+Mmax = M/2;
 t_idx = t>=xl(1) & t<=xl(2);
 
 figure('Position',[100 100 900 720])

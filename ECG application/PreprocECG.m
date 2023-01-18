@@ -15,7 +15,7 @@ t = (0:N-1)/fs;
 close all
 clc
 
-[~,idx] = findpeaks(y(:,2),'MinPeakDistance',0.9,'MinPeakProminence',4);
+[~,idx] = findpeaks(y(:,5),'MinPeakDistance',0.9,'MinPeakProminence',4);
 locs = t(idx);
 
 [RRinterval,T] = resample( diff(locs), idx(2:end), 1, 1, 1, 'spline' );
@@ -31,7 +31,7 @@ idx_bl = idx - round(1*diff([0 idx'])/4)';
 locs_bl = t(idx_bl);
 
 f = zeros(size(y));
-for i=1:3
+for i=1:6
     [baseline,~,~] = fit( locs_bl', y(idx_bl,i), 'cubicinterp' );
     f(:,i) = feval(baseline,t);
 end

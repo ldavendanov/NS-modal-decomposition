@@ -20,16 +20,20 @@ end
 n = 2*M;                    % Dimension of the modal and parameter vector
 [d,N] = size(y);            % Size of the signal
 
+% Setting up hyperparameters
+HyperPar.Q = blkdiag( InitialGuess.Variances(2)*eye(n), InitialGuess.Variances(3)*eye(n) );
+HyperPar.R = InitialGuess.Variances(1)*eye(d);
+HyperPar.Psi = zeros(d,n);
+if isfield(InitialGuess,'Psi')
+    for i=1:M
+        HyperPar.Psi(:,2*i-1) = real(InitialGuess.Psi(:,2*i-1));
+        HyperPar.Psi(:,2*i) = imag(InitialGuess.Psi(:,2*i-1));
+    end
+end
+
 % Set up initial values
 Initial.x0 = zeros(2*n,1);
 Initial.P0 = 1e-6*eye(2*n);
-HyperPar.Q = blkdiag( InitialGuess.Variances(2)*eye(n), InitialGuess.Variances(3)*eye(n) );
-HyperPar.R = InitialGuess.Variances(1)*eye(d);
-HyperPar.Psi = ones(d,n);
-HyperPar.Psi(:,2:2:end) = 0;
-
-% % [Initial,HyperPar] = VAR_initialization(y(:,1:min(200*M,N)),M,InitialGuess);
-% % [Initial,HyperPar] = STFT_initialization(y,M,InitialGuess.TargetFreqs);
 if isfield(InitialGuess,'Freqs')
     Initial.x0(n+1:2:end) = cos(InitialGuess.Freqs);
     Initial.x0(n+2:2:end) = sin(InitialGuess.Freqs);

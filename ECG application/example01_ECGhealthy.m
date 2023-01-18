@@ -6,6 +6,7 @@ addpath('..\Core\')
 
 %% Pt.1 : Loading ECG recording
 
+addpath('C:\Users\ldav\Documents\MATLAB\wfdb-app-toolbox-0-10-0\mcode')
 [val, Fs] = rdsamp('ptbdb/patient104/s0306lre');
 
 %%
@@ -103,7 +104,7 @@ clc
 
 % Initialization
 M = 46;
-Orders = (1:M);
+Orders = (1:2:M);
 
 Optimize = true;
 
@@ -111,7 +112,7 @@ if Optimize
     IniGuess.Variances = [1e0 1e-12];
     IniGuess.TargetFrequency = 2*pi*1.07/fs;
     Niter = 100;
-    [Modal,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_MultiHar_Integrated_EM(y0(1001:2000,:)',Orders,Niter,IniGuess);
+    [Modal,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_MultiHar_EM(y0(1001:2000,:)',Orders,Niter,IniGuess);
     
     save('Optimized_HyperPar','HyperPar','Initial','IniGuess','logMarginal','Niter')
     
@@ -174,7 +175,7 @@ print('Figures\ECGcontrol_ErrorPerf','-dpng','-r300')
 %- Optimized covariances plot
 figure('Position',[100 400 900 360])
 subplot(121)
-bar(diag(HyperPar.Q(1:2:2*M,1:2:2*M))*1e2)
+bar(diag(HyperPar.Q(1:2:M,1:2:M))*1e2)
 xlabel('Harmonic index')
 ylabel('State innov. variance $\times 10^{-2}$','Interpreter','latex')
 set(gca,'FontName',FName,'FontSize',FSize)
@@ -227,7 +228,7 @@ for j=1:2
     
     for i=1:M_max
         
-        Psi = zeros(1,2*M);
+        Psi = zeros(1,M);
         ind = (1:2)+2*(i-1);
         Psi(ind) = HyperPar.Psi(leads(j),ind);
         
@@ -261,7 +262,7 @@ hold on
 for i=1:min(10,M)
     
     ind = (1:2) + 2*(i-1);
-    psi = zeros(1,2*M);
+    psi = zeros(1,M);
     psi(ind) = HyperPar.Psi(r,ind);
     
     plot3(i*ones(1,N),t,psi*Modal.ym,'Color',clr(1,:),'LineWidth',1.5)
@@ -284,7 +285,7 @@ r = 4;
 psi = HyperPar.Psi(r,ind);
 psi = sqrt( psi(1:2:end).^2 + psi(2:2:end).^2 );
 A = diag(psi)*Modal.Am;
-Mmax = 40;
+Mmax = 20;
 
 figure('Position',[100 100 900 800])
 subplot(4,1,4)
@@ -309,14 +310,14 @@ close all
 clc
 
 subplot(211)
-plot(t,Modal.ym(2*M-1:2*M,:))
+plot(t,Modal.ym(M-1:M,:))
 
 subplot(212)
 plot(t,err)
 
 figure
 subplot(211)
-pwelch(Modal.ym(2*M-1:2*M,:)')
+pwelch(Modal.ym(M-1:M,:)')
 
 subplot(212)
 pwelch(err')

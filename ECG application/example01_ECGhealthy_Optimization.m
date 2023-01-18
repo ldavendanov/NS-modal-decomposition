@@ -2,6 +2,7 @@ clear
 close all
 clc
 
+addpath('C:\Users\ldav\Documents\MATLAB\wfdb-app-toolbox-0-10-0\mcode')
 addpath('..\Core\')
 
 %% Pt.1 : Loading ECG recording
@@ -25,7 +26,7 @@ close all
 clc
 
 IniGuess.Variances = [1e-4 1e-10];
-IniGuess.TargetFrequency = 2*pi*1.07/fs;
+IniGuess.TargetFrequency = mean(omega_ref);
 Niter = 100;
 T = 1201:2200;
 
@@ -35,7 +36,7 @@ RSS_SSS = zeros(23,3);
 % Initialization
 for m = 2:2:46
     
-    Orders = (1:m);    
+    Orders = (1:2:m);    
     [Modal,logMarginal(:,m/2),HyperPar] = MO_DSS_JointEKF_MultiHar_Integrated_EM(y(T,:)',Orders,Niter,IniGuess);    
     yhat = HyperPar.Psi * Modal.ym;
     err = y(T,:) - yhat';
@@ -59,7 +60,7 @@ load('MOS_perf','RSS_SSS','logMarginal')
 
 figure('Position',[100 100 900 360])
 subplot(121)
-semilogy(2:2:46,100*RSS_SSS)
+semilogy(2:2:46,100*RSS_SSS,'-o')
 grid on
 set(gca,'FontName',FName,'FontSize',FSize)
 xlabel('Model order')
