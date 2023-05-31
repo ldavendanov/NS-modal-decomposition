@@ -105,7 +105,7 @@ tic
 InitialGuess.TargetFrequency = OmegaRef/fs;
 InitialGuess.Variances = [1e-2 1e-2 1e-6];
 [Modal{1},logMarginal{1},HyperPar{1},Initial{1}] = MO_DSS_JointEKF_MultiHar_EM(y',Orders,Niter,InitialGuess);
-CT(1) = toc
+CT(1) = toc;
 
 print('Figures\OptimizationKFHarm','-r300','-dpng')
 
@@ -114,7 +114,7 @@ tic
 InitialGuess.TargetFrequency = OmegaRef/fs*(1:M);
 InitialGuess.Variances = [1e-2 1e-2 1e-6];
 [Modal{2},logMarginal{2},HyperPar{2},Initial{2}] = MO_DSS_JointEKF_EM(y',M,Niter,InitialGuess);
-CT(2) = toc
+CT(2) = toc;
 
 print('Figures\OptimizationKFdiag','-r300','-dpng')
 

@@ -2,168 +2,170 @@ clear
 close all
 clc
 
-OmegaRef = 2*pi*2;
-T = 300;
-fs = 60;
-z0 = zeros(7,1);
-t = 0:1/fs:T;
+% Load simulation data
+load("URsystem_response.mat")
+y = y(10001:20000,:);
+Omega = Omega(10001:20000);
+mnOmega = mean(Omega);
+time = t(1:10000);
 
-[t,z] = ode45( @(t,z)UnbalancedRotorODE(t,z,OmegaRef), t, z0 );
+y = resample(y,1,5);
+Omega = resample(Omega-mnOmega,1,5)+mnOmega;
+time = time(1:5:end);
+fs = fs/5;
 
-%% Calculate accelerations from displacements and velocities
-clc
+[N,n] = size(y);
 
-y = zeros(numel(t),2);
-for i=1:numel(t)
-    dz = UnbalancedRotorODE(t(i),z(i,:)',OmegaRef);
-    y(i,:) = dz(4:5);
-end
-
-%% Simulation results
+%% Test at different noise levels
 close all
 clc
 
-figure
-subplot(511)
-plot(t,y(:,1)*1e3)
-grid on
-xlabel('Time (s)')
-ylabel('Engine acceleration (m/s^2)')
-xlim([160 180])
+addpath('..\..\Core\')
 
-subplot(512)
-plot(t,y(:,2))
-grid on
-xlabel('Time (s)')
-ylabel('Rotor radial acceleration (m/s^2)')
-xlim([160 180])
+M = 4;
+Orders = 1:M;
+Niter = 100;
 
-subplot(513)
-plot(t,z(:,6))
-hold on
-plot([t(1) t(end)],OmegaRef*[1 1])
-grid on
-xlabel('Time (s)')
-ylabel('Rotor speed (rad/s)')
-xlim([160 180])
+SNR = 0:5:60;
 
-subplot(514)
-plot(t,OmegaRef-z(:,6))
-grid on
-xlabel('Time (s)')
-ylabel('Speed error (rad/s)')
-xlim([160 180])
+varY = min(var(y));
+varN = 10.^(-SNR/10)*varY;
 
-subplot(515)
-plot(t,z(:,7))
-grid on
-xlabel('Time (s)')
-ylabel('Applied torque (N/m)')
-xlim([160 180])
+logML = zeros(size(SNR,2),2);
+rss_sss = zeros(3,size(SNR,2),2);
 
-
-Nf = 4096;
-[Pyy,frec] = pwelch(z(:,1:2),hann(Nf),Nf/2,Nf,fs);
-
-figure
-plot(frec,10*log10(Pyy))
-yl = get(gca,'YLim');
-hold on
-for i=1:7
-    plot(i*[1 1]*OmegaRef/(2*pi),yl,'--k')
-end
-
-figure
-for i=1:2
-    subplot(1,2,i)
-    spectrogram(y(:,i),gausswin(512,4),510,512,fs)
-end
-
-%% Optimize harmonic decomposition
-close all
-clc
-
-Y = y(16001:17000,:);
-time = t(1:1000);
-
-addpath('..\Core\')
-
-
-Orders = 1:6;
-Niter = 50;
-InitialGuess.TargetFrequency = 2/fs;
-InitialGuess.Variances = [1e-1 1e-3];
-[Modal,logMarginal,HyperPar,Initial] = MO_DSS_JointEKF_MultiHar_EM(Y',Orders,Niter,InitialGuess);
-
-%%
-close all
-clc
-
-SNR = 12:2:30;
-logL = zeros(size(SNR));
-ym = zeros(2*numel(Orders),size(Y,1),numel(SNR));
-fN = zeros(size(Y,1),numel(SNR));
 for i=1:numel(SNR)
 
-    sigmaY2 = var(Y);
-    sigmaN2 = sigmaY2*10.^(-SNR(i)/10);
+    %-- Add noise
+    yN = y + sqrt(varN(i))*randn(size(y));
 
-    Yn = Y + randn(size(Y))*diag(sigmaN2);
+    %-- KF harmonic decomposition
+    InitialGuess.TargetFrequency = OmegaRef/fs;
+    InitialGuess.Variances = [varN(i) 1e-2 1e-6];
+    [Modal,logMarginal,HyperPar,~] = MO_DSS_JointEKF_MultiHar_EM(yN',Orders,Niter,InitialGuess);
 
-    [Modal,logMarginal] = MO_DSS_JointEKF_MultiHar(Yn',Orders,HyperPar,Initial);
-    logL(i) = sum(logMarginal);
-    ym(:,:,i) = Modal.ym;
-    fN(:,i) = Modal.omega*fs/(2*pi);
+    %-- Error analysis
+    yhat = (HyperPar.Psi*Modal.ym)';
+    err = y - yhat;
+    rss_sss(:,i,1) = var(err)./var(y);
+    logML(i,1) = logMarginal(end);
+
+    %-- Block diagonal SS
+    InitialGuess.TargetFrequency = OmegaRef/fs*(1:M);
+    InitialGuess.Variances = [varN(i) 1e-2 1e-6];
+    [Modal,logMarginal,HyperPar,~] = MO_DSS_JointEKF_EM(yN',M,Niter,InitialGuess);
+
+    %-- Error analysis
+    yhat = (HyperPar.Psi*Modal.ym)';
+    err = y - yhat;
+    rss_sss(:,i,2) = var(err)./var(y);
+    logML(i,2) = logMarginal(end);
+
 end
 
-%%
+save('UR_NoisePerformanceWhite','logML','rss_sss','SNR')
+
+%% Colored noise
 close all
 clc
 
-figure
-bar(SNR,logL)
+% Filter design for colored noise
+f0 = 2; sigmaF = 2;
+f = linspace(0,fs/2);
+Hmag = exp(-(f-f0).^2/(2*sigmaF^2));
+b = fir2(80,f*2/fs,Hmag);
 
 figure
-for i=1:4
-    subplot(5,1,i)
-    plot(time,squeeze(ym(2*i,:,:)))
-    ylim(6*[-1 1])
-end
-
-subplot(515)
-plot(time,abs(fN))
+plot(f,Hmag.^2)
 
 %%
-function dz = UnbalancedRotorODE(~,z,OmegaRef)
+addpath('..\..\Core\')
 
-% System settings
-m = [10 0.4];               % Mass (kg)
-k = [1000 200];             % Stiffness (N/m)
-c = 0.01*[1 0.1];                % Damping (N*s/m)
-l2 = 0.2;                   % Rotor radius before deformation (m)
+M = 4;
+Orders = 1:M;
+Niter = 100;
 
-% System variables
-Omega = z(6);               % Rotor speed (rad/s)
-theta = z(3);               % Rotor angle (rad)
-d2 = l2 + z(2);             % Deformed rotor radius (m)
-Fc = m(2)*d2*Omega^2;       % Centrifugal force of rotor (N)
+SNR = 0:5:60;
 
-% Rotor speed control
-Cp = 4e1;                   % Proportional coefficient
-Ci = 1e2;                   % Integral coefficient
-Tau = z(7);                 % Applied torque
-err = OmegaRef - Omega;
+varY = min(var(y));
+varN = 10.^(-SNR/10)*varY;
 
-% System matrices
-M = [            sum(m) m(2)*sin(theta) m(2)*d2*cos(theta);
-        m(2)*sin(theta)            m(2)                  0;
-     m(2)*d2*cos(theta)               0          m(2)*d2^2];
+logML = zeros(size(SNR,2),2);
+rss_sss = zeros(3,size(SNR,2),2);
 
-f = [ Fc*sin(theta) - 2*m(2)*cos(theta)*z(5)*z(6) - k(1)*z(1) - c(1)*z(4); 
-      Fc - k(2)*z(2) - c(2)*z(5);
-      Tau - 2*m(2)*z(5)*z(6)*d2];
+for i=1:numel(SNR)
 
-dx = M\f;
-dz = [z(4:6); dx; Ci*err - Cp*dx(3)];
+    %-- Add noise
+    eta = randn(size(y));
+    eta = filter(b,1,eta);
+    yN = y + sqrt(varN(i))*eta./var(eta);
+
+    %-- KF harmonic decomposition
+    InitialGuess.TargetFrequency = OmegaRef/fs;
+    InitialGuess.Variances = [varN(i) 1e-2 1e-6];
+    [Modal,logMarginal,HyperPar,~] = MO_DSS_JointEKF_MultiHar_EM(yN',Orders,Niter,InitialGuess);
+
+    %-- Error analysis
+    yhat = (HyperPar.Psi*Modal.ym)';
+    err = y - yhat;
+    rss_sss(:,i,1) = var(err)./var(y);
+    logML(i,1) = logMarginal(end);
+
+    %-- Block diagonal SS
+    InitialGuess.TargetFrequency = OmegaRef/fs*(1:M);
+    InitialGuess.Variances = [varN(i) 1e-2 1e-6];
+    [Modal,logMarginal,HyperPar,~] = MO_DSS_JointEKF_EM(yN',M,Niter,InitialGuess);
+
+    %-- Error analysis
+    yhat = (HyperPar.Psi*Modal.ym)';
+    err = y - yhat;
+    rss_sss(:,i,2) = var(err)./var(y);
+    logML(i,2) = logMarginal(end);
+
+    close all
 
 end
+
+save('UR_NoisePerformanceColored','logML','rss_sss','SNR')
+
+%% Results
+close all
+clc
+
+load('UR_NoisePerformanceWhite','rss_sss','SNR')
+clr = lines(3);
+
+figure('Position',[100 100 900 360])
+t = tiledlayout('flow','TileSpacing','compact');
+nexttile
+for i=1:3
+    semilogy(SNR,rss_sss(i,:,1)','Color',clr(i,:),'LineWidth',2)
+    hold on
+    semilogy(SNR,rss_sss(i,:,2)','--','Color',clr(i,:),'LineWidth',2)
+end
+grid on
+xlabel('SNR (dB)')
+ylabel('RSS/SSS')
+text(1,1e0,'White noise','HorizontalAlignment','left','VerticalAlignment','top')
+
+load('UR_NoisePerformanceColored','logML','rss_sss','SNR')
+clr = lines(3);
+
+nexttile
+for i=1:3
+    p(i) = semilogy(SNR,rss_sss(i,:,1)','Color',clr(i,:),'LineWidth',2);
+    hold on
+    p(i+3) = semilogy(SNR,rss_sss(i,:,2)','--','Color',clr(i,:),'LineWidth',2);
+end
+grid on
+xlabel('SNR (dB)')
+ylabel('RSS/SSS')
+text(1,1e0,'Coloured noise','HorizontalAlignment','left','VerticalAlignment','top')
+
+lgd = legend(p,{'Horz. KF-Harm','Vert. KF-Harm','Axial KF-Harm',...
+    'Horz. KF-Diag','Vert. KF-Diag','Axial KF-Diag'});
+lgd.Layout.Tile = 'north';
+lgd.Orientation = 'horizontal';
+
+set(gcf,'PaperPositionMode','auto')
+print('Figures\UR_NoisePerformance','-r300','-dpng')
