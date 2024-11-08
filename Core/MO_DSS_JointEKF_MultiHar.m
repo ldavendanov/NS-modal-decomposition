@@ -1,4 +1,4 @@
-function [Modal,logMarginal] = MO_DSS_JointEKF_MultiHar(y,Orders,HyperPar,Initial)
+function [Modal,logMarginal,State,Covariances] = MO_DSS_JointEKF_MultiHar(y,Orders,HyperPar,Initial)
 %--------------------------------------------------------------------------
 % Joint EKF estimator for Multiple-Output Diagonal State Space
 % representation. This function estimates the 'M' modal components of a
